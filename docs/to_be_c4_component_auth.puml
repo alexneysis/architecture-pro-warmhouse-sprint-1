@@ -1,0 +1,28 @@
+@startuml "Container diagram as is"
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+
+Person(user, "User", "Пользователь приложения Теплый дом")
+ContainerDb(db, "Database", "PostgreSQL", "Stores user data and application state")
+Container(manager_api, "Manager", "Go", "Обеспечивает REST API для взаимодействия с устройствами и клиентами")
+
+System_Boundary(c1, "[Container] Auth and API Gateway]") {
+ Component(login, "Login controller", "Python fast api", "Получение данных от устройств и отправка команд управления")
+ Component(registration, "Registration controller", "Python fast api", "Получение данных от устройств и отправка команд управления")
+ Component(security, "Security component", "Python fast api", "Получение данных от устройств и отправка команд управления")
+ Component(proxy, "Proxy controller", "Python fast api", "Получение данных от устройств и отправка команд управления")
+}
+
+Rel(user, login, "Авторизируется")
+Rel(user, registration, "Регистрируется")
+Rel(user, proxy, "Использует систему")
+Rel(proxy, manager_api, "Использует систему")
+Rel(registration, security, "Использует систему")
+Rel(login, security, "Использует систему")
+Rel(proxy, security, "Использует систему")
+Rel(security,db,"Reads from and writes to")
+
+@enduml

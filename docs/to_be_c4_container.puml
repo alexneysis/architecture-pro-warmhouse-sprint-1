@@ -1,0 +1,28 @@
+@startuml "Container diagram as is"
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+'!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+
+Person(user, "User", "Пользователь приложения Теплый дом")
+System(devices, "Партнерские устройства", "Подключенные умные устройства", "Uses REST API, JSON data format")
+
+System_Boundary(c1, "[Container] SaaS платформа Теплый дом]") {
+    Container(auth_api, "Auth and API Gateway", "Python", "Обеспечивает аутентификацию и авторизацию пользователей, маршрутизацию запросов к API")
+    Container(manager_api, "Manager", "Go", "Обеспечивает REST API для взаимодействия с устройствами и клиентами")
+    Container(registrator_api, "Registrator", "Python", "Подключение и отключение устройств")
+    Container(collector_api, "Collector", "Go", "Обеспечивает REST API для взаимодействия с устройствами и клиентами")
+    ContainerDb(db, "Database", "PostgreSQL", "Stores user data and application state")
+}
+
+Rel(user, auth_api, "Пользуется системой")
+Rel(auth_api,manager_api,"Передача запросов")
+Rel(devices,registrator_api,"Регистрация и удаление устройств")
+Rel(manager_api,devices,"Получения данных и отправка команд управления")
+Rel(collector_api, devices, "Получение данных от устройств")
+Rel(auth_api,db,"Reads from and writes to")
+Rel(registrator_api,db,"Reads from and writes to")
+Rel(collector_api,db,"Reads from and writes to")
+
+@enduml

@@ -1,0 +1,473 @@
+openapi: 3.0.3
+info:
+  title: Warm House Registrator API
+  version: 1.0.0
+  description: |
+    API сервиса Registrator для регистрации, подключения, отключения,
+    просмотра и удаления устройств в SaaS-платформе "Тёплый дом".
+
+servers:
+  - url: https://api.teply-dom.ru/registrator
+    description: Production
+  - url: http://localhost:8082
+    description: Local development
+
+tags:
+  - name: Devices
+    description: Операции регистрации и подключения устройств
+
+paths:
+  /devices:
+    get:
+      tags:
+        - Devices
+      summary: Получить список устройств
+      description: Возвращает список устройств, зарегистрированных для дома.
+      parameters:
+        - in: query
+          name: house_id
+          required: false
+          schema:
+            type: integer
+          description: Идентификатор дома
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+          description: Фильтр по статусу устройства
+      responses:
+        '200':
+          description: Список устройств успешно получен
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Device'
+              examples:
+                success:
+                  summary: Пример ответа
+                  value:
+                    items:
+                      - id: 1
+                        type_id: 2
+                        house_id: 10
+                        alias: "Living room heater"
+                        serial_number: "SN-HEAT-10001"
+                        status: "connected"
+                        created_at: "2026-04-03T11:30:00Z"
+                        updated_at: "2026-04-03T12:00:00Z"
+                        deleted_at: null
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /devices/register:
+    post:
+      tags:
+        - Devices
+      summary: Зарегистрировать новое устройство
+      description: |
+        Создаёт запись устройства в системе. После регистрации устройство получает статус
+        `registered`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+            examples:
+              registerDevice:
+                summary: Пример регистрации устройства
+                value:
+                  type_id: 2
+                  house_id: 10
+                  alias: "Living room heater"
+                  serial_number: "SN-HEAT-10001"
+                  status: "registered"
+      responses:
+        '201':
+          description: Устройство успешно зарегистрировано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+              examples:
+                created:
+                  value:
+                    id: 1
+                    type_id: 2
+                    house_id: 10
+                    alias: "Living room heater"
+                    serial_number: "SN-HEAT-10001"
+                    status: "registered"
+                    created_at: "2026-04-03T11:30:00Z"
+                    updated_at: "2026-04-03T11:30:00Z"
+                    deleted_at: null
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          description: Устройство уже зарегистрировано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyExists:
+                  value:
+                    code: "DEVICE_ALREADY_EXISTS"
+                    message: "Device with this serial number already exists"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /devices/{deviceId}:
+    get:
+      tags:
+        - Devices
+      summary: Получить информацию об устройстве
+      description: Возвращает подробную информацию об устройстве по его идентификатору.
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Информация об устройстве успешно получена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+              examples:
+                success:
+                  value:
+                    id: 1
+                    type_id: 2
+                    house_id: 10
+                    alias: "Living room heater"
+                    serial_number: "SN-HEAT-10001"
+                    status: "connected"
+                    created_at: "2026-04-03T11:30:00Z"
+                    updated_at: "2026-04-03T12:00:00Z"
+                    deleted_at: null
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    delete:
+      tags:
+        - Devices
+      summary: Удалить устройство из реестра
+      description: |
+        Удаляет устройство из системы. Обычно используется для окончательного удаления
+        устройства, которое больше не должно обслуживаться платформой.
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '204':
+          description: Устройство успешно удалено
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Невозможно удалить подключённое устройство
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                connectedConflict:
+                  value:
+                    code: "DEVICE_CONNECTED"
+                    message: "Disconnect device before deleting it"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /devices/{deviceId}/connect:
+    post:
+      tags:
+        - Devices
+      summary: Подключить устройство
+      description: |
+        Подключает ранее зарегистрированное устройство.
+        После успешного подключения устройство получает статус `connected`.
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectDeviceRequest'
+            examples:
+              connectExample:
+                summary: Пример подключения устройства
+                value:
+                  house_id: 10
+                  status: "connected"
+      responses:
+        '200':
+          description: Устройство успешно подключено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+              examples:
+                connected:
+                  value:
+                    id: 1
+                    type_id: 2
+                    house_id: 10
+                    alias: "Living room heater"
+                    serial_number: "SN-HEAT-10001"
+                    status: "connected"
+                    created_at: "2026-04-03T11:30:00Z"
+                    updated_at: "2026-04-03T12:00:00Z"
+                    deleted_at: null
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Устройство уже подключено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyConnected:
+                  value:
+                    code: "DEVICE_ALREADY_CONNECTED"
+                    message: "Device is already connected"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /devices/{deviceId}/disconnect:
+    post:
+      tags:
+        - Devices
+      summary: Отключить устройство
+      description: |
+        Отключает устройство от дома. После успешного отключения устройство
+        остаётся в реестре, но получает статус `disconnected`.
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisconnectDeviceRequest'
+            examples:
+              disconnectExample:
+                summary: Пример отключения устройства
+                value:
+                  status: "disconnected"
+                  reason: "User removed device from house"
+      responses:
+        '200':
+          description: Устройство успешно отключено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+              examples:
+                disconnected:
+                  value:
+                    id: 1
+                    type_id: 2
+                    house_id: 10
+                    alias: "Living room heater"
+                    serial_number: "SN-HEAT-10001"
+                    status: "disconnected"
+                    created_at: "2026-04-03T11:30:00Z"
+                    updated_at: "2026-04-03T12:15:00Z"
+                    deleted_at: null
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Устройство уже отключено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyDisconnected:
+                  value:
+                    code: "DEVICE_ALREADY_DISCONNECTED"
+                    message: "Device is already disconnected"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      description: Идентификатор устройства
+      schema:
+        type: integer
+
+  schemas:
+    Device:
+      type: object
+      required:
+        - id
+        - type_id
+        - house_id
+        - alias
+        - serial_number
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: Уникальный идентификатор устройства
+        type_id:
+          type: integer
+          description: Идентификатор типа устройства
+        house_id:
+          type: integer
+          description: Идентификатор дома, к которому принадлежит устройство
+        alias:
+          type: string
+          maxLength: 64
+          description: Отображаемое имя устройства
+        serial_number:
+          type: string
+          maxLength: 255
+          description: Серийный номер устройства
+        status:
+          type: string
+          maxLength: 64
+          description: Текущий статус устройства
+        created_at:
+          type: string
+          format: date-time
+          description: Время создания записи
+        updated_at:
+          type: string
+          format: date-time
+          description: Время последнего обновления записи
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Время удаления записи
+
+    RegisterDeviceRequest:
+      type: object
+      required:
+        - type_id
+        - house_id
+        - alias
+        - serial_number
+        - status
+      properties:
+        type_id:
+          type: integer
+          description: Идентификатор типа устройства
+        house_id:
+          type: integer
+          description: Идентификатор дома
+        alias:
+          type: string
+          maxLength: 64
+          description: Отображаемое имя устройства
+        serial_number:
+          type: string
+          maxLength: 255
+          description: Серийный номер устройства
+        status:
+          type: string
+          maxLength: 64
+          description: Начальный статус устройства
+
+    ConnectDeviceRequest:
+      type: object
+      required:
+        - house_id
+        - status
+      properties:
+        house_id:
+          type: integer
+          description: Идентификатор дома, к которому подключается устройство
+        status:
+          type: string
+          maxLength: 64
+          description: Новый статус устройства, например connected
+
+    DisconnectDeviceRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          maxLength: 64
+          description: Новый статус устройства, например disconnected
+        reason:
+          type: string
+          description: Причина отключения устройства
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Машиночитаемый код ошибки
+        message:
+          type: string
+          description: Человекочитаемое описание ошибки
+
+  responses:
+    BadRequestError:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            badRequest:
+              value:
+                code: "BAD_REQUEST"
+                message: "Request payload is invalid"
+
+    UnauthorizedError:
+      description: Пользователь не авторизован
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              value:
+                code: "UNAUTHORIZED"
+                message: "Authentication token is missing or invalid"
+
+    NotFoundError:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                code: "DEVICE_NOT_FOUND"
+                message: "Device not found"
+
+security:
+  - bearerAuth: []

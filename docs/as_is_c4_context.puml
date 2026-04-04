@@ -1,0 +1,16 @@
+@startuml test
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+
+Person(user, "User", "Пользователь приложения Теплый дом")
+Person(support, "Support", "Команда поддержки приложения Теплый дом")
+System(WarmHouse, "SaaS платформа Теплый дом", "Система подключения и управления умными устройствами в доме")
+
+System_Ext(devices, "Партнерские устройства", "Подключенные умные устройства", "Uses REST API, JSON data format")
+
+Rel(user, WarmHouse, "Пользуется системой")
+Rel(support, WarmHouse, "Устраняет проблемы и поддерживает систему")
+Rel(WarmHouse,devices,"Получения данных и отправка команд управления")
+
+@enduml
