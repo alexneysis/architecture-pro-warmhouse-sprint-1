@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -16,15 +17,17 @@ import (
 
 // SensorHandler handles sensor-related requests
 type SensorHandler struct {
-	DB                 *db.DB
-	TemperatureService *services.TemperatureService
+	DB                  *db.DB
+	TemperatureService  *services.TemperatureService
+	RegistrationService *services.RegistrationService
 }
 
 // NewSensorHandler creates a new SensorHandler
-func NewSensorHandler(db *db.DB, temperatureService *services.TemperatureService) *SensorHandler {
+func NewSensorHandler(db *db.DB, temperatureService *services.TemperatureService, registrationService *services.RegistrationService) *SensorHandler {
 	return &SensorHandler{
-		DB:                 db,
-		TemperatureService: temperatureService,
+		DB:                  db,
+		TemperatureService:  temperatureService,
+		RegistrationService: registrationService,
 	}
 }
 
@@ -42,34 +45,18 @@ func (h *SensorHandler) RegisterRoutes(router *gin.RouterGroup) {
 	}
 }
 
-// GetSensors handles GET /api/v1/sensors
+// GetSensors handles GET /api/v1/sensors — proxied to registration-api
 func (h *SensorHandler) GetSensors(c *gin.Context) {
-	sensors, err := h.DB.GetSensors(context.Background())
+	data, statusCode, err := h.RegistrationService.GetSensors()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Error proxying GetSensors to registration-api: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("registration API unavailable: %v", err)})
 		return
 	}
-
-	// Update temperature sensors with real-time data from the external API
-	for i, sensor := range sensors {
-		if sensor.Type == models.Temperature {
-			tempData, err := h.TemperatureService.GetTemperatureByID(fmt.Sprintf("%d", sensor.ID))
-			if err == nil {
-				// Update sensor with real-time data
-				sensors[i].Value = tempData.Value
-				sensors[i].Status = tempData.Status
-				sensors[i].LastUpdated = tempData.Timestamp
-				log.Printf("Updated temperature data for sensor %d from external API", sensor.ID)
-			} else {
-				log.Printf("Failed to fetch temperature data for sensor %d: %v", sensor.ID, err)
-			}
-		}
-	}
-
-	c.JSON(http.StatusOK, sensors)
+	c.Data(statusCode, "application/json", data)
 }
 
-// GetSensorByID handles GET /api/v1/sensors/:id
+// GetSensorByID handles GET /api/v1/sensors/:id — proxied to registration-api
 func (h *SensorHandler) GetSensorByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -77,27 +64,13 @@ func (h *SensorHandler) GetSensorByID(c *gin.Context) {
 		return
 	}
 
-	sensor, err := h.DB.GetSensorByID(context.Background(), id)
+	data, statusCode, err := h.RegistrationService.GetSensorByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Sensor not found"})
+		log.Printf("Error proxying GetSensorByID to registration-api: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("registration API unavailable: %v", err)})
 		return
 	}
-
-	// If this is a temperature sensor, fetch real-time data from the temperature API
-	if sensor.Type == models.Temperature {
-		tempData, err := h.TemperatureService.GetTemperatureByID(fmt.Sprintf("%d", sensor.ID))
-		if err == nil {
-			// Update sensor with real-time data
-			sensor.Value = tempData.Value
-			sensor.Status = tempData.Status
-			sensor.LastUpdated = tempData.Timestamp
-			log.Printf("Updated temperature data for sensor %d from external API", sensor.ID)
-		} else {
-			log.Printf("Failed to fetch temperature data for sensor %d: %v", sensor.ID, err)
-		}
-	}
-
-	c.JSON(http.StatusOK, sensor)
+	c.Data(statusCode, "application/json", data)
 }
 
 // GetTemperatureByLocation handles GET /api/v1/sensors/temperature/:location
@@ -128,21 +101,21 @@ func (h *SensorHandler) GetTemperatureByLocation(c *gin.Context) {
 	})
 }
 
-// CreateSensor handles POST /api/v1/sensors
+// CreateSensor handles POST /api/v1/sensors — proxied to registration-api
 func (h *SensorHandler) CreateSensor(c *gin.Context) {
-	var sensorCreate models.SensorCreate
-	if err := c.ShouldBindJSON(&sensorCreate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	sensor, err := h.DB.CreateSensor(context.Background(), sensorCreate)
+	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, sensor)
+	data, statusCode, err := h.RegistrationService.CreateSensor(body)
+	if err != nil {
+		log.Printf("Error proxying CreateSensor to registration-api: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("registration API unavailable: %v", err)})
+		return
+	}
+	c.Data(statusCode, "application/json", data)
 }
 
 // UpdateSensor handles PUT /api/v1/sensors/:id
@@ -168,7 +141,7 @@ func (h *SensorHandler) UpdateSensor(c *gin.Context) {
 	c.JSON(http.StatusOK, sensor)
 }
 
-// DeleteSensor handles DELETE /api/v1/sensors/:id
+// DeleteSensor handles DELETE /api/v1/sensors/:id — proxied to registration-api
 func (h *SensorHandler) DeleteSensor(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -176,13 +149,13 @@ func (h *SensorHandler) DeleteSensor(c *gin.Context) {
 		return
 	}
 
-	err = h.DB.DeleteSensor(context.Background(), id)
+	data, statusCode, err := h.RegistrationService.DeleteSensor(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Error proxying DeleteSensor to registration-api: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("registration API unavailable: %v", err)})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Sensor deleted successfully"})
+	c.Data(statusCode, "application/json", data)
 }
 
 // UpdateSensorValue handles PATCH /api/v1/sensors/:id/value
