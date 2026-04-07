@@ -41,7 +41,8 @@ func (h *SensorHandler) RegisterRoutes(router *gin.RouterGroup) {
 		sensors.PUT("/:id", h.UpdateSensor)
 		sensors.DELETE("/:id", h.DeleteSensor)
 		sensors.PATCH("/:id/value", h.UpdateSensorValue)
-		sensors.GET("/temperature/:location", h.GetTemperatureByLocation)
+		sensors.GET("/temperature", h.GetTemperatureByLocation)
+		sensors.GET("/temperature/:id", h.GetTemperatureByID)
 	}
 }
 
@@ -73,9 +74,37 @@ func (h *SensorHandler) GetSensorByID(c *gin.Context) {
 	c.Data(statusCode, "application/json", data)
 }
 
-// GetTemperatureByLocation handles GET /api/v1/sensors/temperature/:location
+// GetTemperatureById handles GET /api/v1/sensors/temperature/:id
+func (h *SensorHandler) GetTemperatureByID(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sensor ID"})
+		return
+	}
+
+	// Fetch temperature data from the external API
+	tempData, err := h.TemperatureService.GetTemperatureByID(strconv.Itoa(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to fetch temperature data: %v", err),
+		})
+		return
+	}
+
+	// Return the temperature data
+	c.JSON(http.StatusOK, gin.H{
+		"location":    tempData.Location,
+		"value":       tempData.Value,
+		"unit":        tempData.Unit,
+		"status":      tempData.Status,
+		"timestamp":   tempData.Timestamp,
+		"description": tempData.Description,
+	})
+}
+
+// GetTemperatureByLocation handles GET /api/v1/sensors/temperature?location=1
 func (h *SensorHandler) GetTemperatureByLocation(c *gin.Context) {
-	location := c.Param("location")
+	location := c.Query("location")
 	if location == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Location is required"})
 		return
