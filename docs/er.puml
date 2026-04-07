@@ -1,0 +1,61 @@
+@startchen
+
+left to right direction
+
+entity User {
+    id: int <<key>>
+    full_name: str_255
+    email: str_255
+    hash_password: str_255
+    role: str_64
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime
+}
+
+entity House {
+    id: integer <<key>>
+    alias: str_255
+    address: str_255
+    owner_id: integer <<FK>>
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime
+}
+
+entity DeviceType {
+    id: integer <<key>>
+    name: str_64
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime
+}
+
+entity Device {
+    id: integer <<key>>
+    type_id: integer <<FK>>
+    house_id: integer <<FK>>
+    alias: str_64
+    serial_number: str_255
+    status: str_64
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime
+}
+
+entity TelemetryTemperature {
+    id: integer <<key>>
+    device_id: integer <<FK>>
+    value: float
+    received_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime
+}
+
+User -(1,M)- House
+House -(1,M)- Device
+DeviceType -(1,M)- Device
+Device -(1,M)- TelemetryTemperature
+
+@endchen

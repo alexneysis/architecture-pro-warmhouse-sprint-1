@@ -1,0 +1,21 @@
+@startuml "Container diagram as is"
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+'!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+
+Person(user, "User", "Пользователь приложения Теплый дом")
+System(devices, "Партнерские устройства", "Подключенные умные устройства", "Uses REST API, JSON data format")
+
+System_Boundary(c1, "[Container] SaaS платформа Теплый дом]") {
+    Container(api, "API", "Go", "Обеспечивает REST API для взаимодействия с устройствами и клиентами")
+    ContainerDb(db, "Database", "PostgreSQL", "Stores user data and application state")
+}
+
+Rel(user, api, "Пользуется системой")
+Rel(api,devices,"Получения данных и отправка команд управления")
+Rel(api,db,"Reads from and writes to")
+
+
+@enduml
