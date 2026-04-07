@@ -1,0 +1,32 @@
+@startuml "Code diagram auth to be"
+
+abstract BaseRepository {
+    create()
+    create_or_update()
+    update_by_id()
+    delete_by_id()
+}
+abstract BaseService
+
+class UserService {
+    user_repository: UserRepository
+    create_user()
+    get_user_by_id()
+    update_user_by_id()
+    delete_user_by_id()
+}
+
+class SecurityComponent {
+    user_service: UserService
+    register_user()
+    login_user()
+    authorize_request()
+}
+
+BaseRepository <|-- UserRepository
+BaseService <|-- UserService
+UserService --> UserRepository
+SecurityComponent --> UserService
+
+
+@enduml
